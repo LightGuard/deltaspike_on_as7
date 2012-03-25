@@ -1,0 +1,169 @@
+= Apache DeltaSpike on JBoss AS7 Series: Configuration using JNDI =
+March 23 2012
+
+  DeltaSpike version: v0.1-incubating or higher 
+  JBoss AS version: 7.1.1.Final or higher
+
+Apache DeltaSpike is a collection of CDI extensions for use with any Java 
+Enterprise Edition (Java EE) version 6 or higher. In this series of blogs I will 
+be demonstrating the use of the different extensions within DeltaSpike on JBoss
+AS7. You can find the version of DeltaSpike and JBoss AS being used at the top
+of each of the blog entries.
+
+== JNDI Configuration in DeltaSpike ==
+DeltaSpike contains four locations by default in which it looks for configuration.
+These configurations can be used in part of your application, but are typically 
+used to configure certain low level parts and features of DeltaSpike.
+
+CDI doesn't have any configuration possible besides the `beans.xml` file, which
+will not work in this case. We're going to use JNDI which is a good place to
+place settings for different environments. In fact, using this means of configuring
+DeltaSpike, an application can be moved from one environment to another without
+having to recompile or modify any deployment files!
+
+=== Setting up AS7 ===
+JBoss AS7 requires setting up a management user first to make any changes via
+the CLI or management console. We'll take care of that first. Make sure you
+have a running server before entering the commands below.
+
+-------------------------------
+% $JBOSS_HOME/bin/add-user.sh 
+
+What type of user do you wish to add?                                                           <1>
+ a) Management User (mgmt-users.properties) 
+ b) Application User (application-users.properties)
+(a): a
+
+Enter the details of the new user to add.                                                       <2>
+Realm (ManagementRealm) : 
+Username : deltaspike                                                                           <3>
+Password :                                                                                      <4>
+Re-enter Password :                                                                             
+About to add user 'deltaspike' for realm 'ManagementRealm'
+Is this correct yes/no? yes                                                                     
+Added user 'deltaspike' to file '$JBOSS_HOME/standalone/configuration/mgmt-users.properties'
+Added user 'deltaspike' to file '$JBOSS_HOME/domain/configuration/mgmt-users.properties'
+--------------------------------
+
+<1> Select the type of user you need. We need to be able to make changes to 
+    the management of the server, this is done with a Management User. An 
+    Application user is for use as client to your application, for example a user to access remote EJBs.
+<2> The realm `ManagementRealm` is the default security realm. Adjust accordingly for your system.
+<3> Username to use for the user.
+<4> Any password for the user, however, it cannot be the same as the username
+
+This adds the `deltaspike` user to the management realm with the given password, allowing that
+user to use the CLI console or the web console to make changes without having to change the 
+`standalone.xml` or `domain.xml` files. We now have a user that can add the entries into JNDI
+for our applications. Next we'll add an entry into JNDI:
+
+-------------------------
+% $JBOSS_HOME/bin/jboss-cli.sh 
+You are disconnected at the moment. Type 'connect' to connect to the server or 'help' for the list of supported commands.
+[disconnected /] connect                                                                                                      <1>
+[standalone@localhost:9999 /] /subsystem=naming/binding=java\:global\/deltaspike\/org\.apache\.deltaspike\.ProjectStage: /    <2>
+  add(binding-type=simple, type=java.lang.String, value=Production)
+{"outcome" => "success"}                                                                                                      <3>
+[standalone@localhost:9999 /] exit
+-------------------------
+<1> We must first connect to the server.
+<2> The command to add to JNDI, should be on one line. In this example we're using the `naming/binding` subsystem of the server
+    and issuing the `add` command. You can see the JNDI location will be `java:global/deltaspike/org.apache.deltaspike.ProjectStage`
+    We're also using a simple binding (a string) with a value of `Production`.
+<3> The result of the command
+
+We now have an entry in JNDI we can use in our applications for the project stage of the application. This could be any of the 
+supported stages (Development, UnitTest, SystemTest, Staging, Production) or a custom stage you create. For this example,
+we're assuming we're deploying our application to production.
+
+=== Creating and registering a new ConfigSource ===
+The default JNDI lookup location for configuration within DeltaSpike is `java:comp/env/deltaspike`. Unfortunately, the `java:comp`
+context is not writable my the management tool, only through a programmatic binding or with a deployment descriptor. We don't want
+to use either of those as we'd have to modify code or a deployment descriptor when our application changes environments. We need to
+tell DeltaSpike there's a new location in JNDI we want it to check for configuration. This is done by creating a new instance of
+`ConfigSource` and registering it with DeltaSpike using the standard services registration from the JDK. Let's code up that class:
+
+---------------------
+import java.util.Arrays;
+import java.util.List;
+import java.util.logging.Logger;
+
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+
+import org.apache.deltaspike.core.spi.config.ConfigSource;
+import org.apache.deltaspike.core.spi.config.ConfigSourceProvider;
+
+/**
+ * Configuration source for DeltaSpike to look up in the java:global/deltaspike JNDI context.
+ *
+ * @author <a href="https://community.jboss.org/people/lightguard">Jason Porter</a>
+ */
+public class GlobalJndiConfigSource implements ConfigSource, ConfigSourceProvider {             <1>
+
+    private final String GLOBAL_ENV_BASE_NAME = "java:global/deltaspike";
+    private final Logger logger = Logger.getLogger(GlobalJndiConfigSource.class.getName());
+    private final InitialContext initialContext;
+
+    public GlobalJndiConfigSource() {
+        try {
+            initialContext = new InitialContext();
+        } catch (NamingException e) {
+            logger.fine("Error constructing an InitialContext");
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public int getOrdinal() {
+        return 350;                                                                             <2>
+    }
+
+    @Override
+    public String getPropertyValue(String key) {
+        try {
+            String jndiKey;
+            if ("java:global".startsWith(key)) {
+                jndiKey = key;
+            } else {
+                jndiKey = GLOBAL_ENV_BASE_NAME + "/" + key;
+            }
+
+            Object result = initialContext.lookup(jndiKey);
+
+            if (result instanceof String) {
+                return (String) result;
+            } else {
+                logger.warning("Result from JNDI was not a string!");
+                return result.toString();
+            }
+        } catch (NamingException e) {
+            // swallow, we're just looking to see if it's there.
+        }
+        return null;
+    }
+
+    @Override
+    public String getConfigName() {
+        return GLOBAL_ENV_BASE_NAME;                                                            <3>
+    }
+
+    @Override
+    public List<ConfigSource> getConfigSources() {                                              <4>
+        return Arrays.asList((ConfigSource) this);
+    }
+}
+--------------------------
+<1> A custom `ConfigSource` must implement the `ConfigSource` interface, the `ConfigSourceProvider` is to register the `ConfigSource` with DeltaSpike, more later
+<2> The ordinal, as is defined in the JavaDoc, is to give it an order of the list of `ConfigSources`
+    NOTE: In version v0.1-incubating it must be higher than 300 to be above `LocalJndiConfigSource`, in v0.2-incubating it must be higher than 200
+<3> This is simply a display name, using the `GLOBAL_ENV_BASE_NAME` helps to tell it apart from other JNDI based `ConfigSource` implementations
+<4> Because there's only one class, I combined the `ConfigSourceProvider` into the same class.
+
+The last step to registering the new `ConfigSource` is to add an instance of `ConfigSourceProvider` which returns our new `ConfigSource` from the `ServiceLoader`.
+This is done simply by creating the `ConfigSourceProvider` (I did that in the same class as mentioned above) and add a file called 
+`org.apache.deltaspike.core.spi.config.ConfigSourceProvider` to META-INF/services (this is src/main/resources/META-INF in a maven project) 
+with the fully qualified name of our `ConfigSourceProvider` implementation.
+
+You are now able to correctly configure DeltaSpike from JNDI in AS7 by using the `java:global/deltaspike` context! The source for this example can be found at
+https://github.com/LightGuard/deltaspike_on_as7
