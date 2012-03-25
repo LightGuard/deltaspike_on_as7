@@ -26,6 +26,7 @@ JBoss AS7 requires setting up a management user first to make any changes via
 the CLI or management console. We'll take care of that first. Make sure you
 have a running server before entering the commands below.
 
+[source,console]
 -------------------------------
 % $JBOSS_HOME/bin/add-user.sh 
 
@@ -57,6 +58,7 @@ user to use the CLI console or the web console to make changes without having to
 `standalone.xml` or `domain.xml` files. We now have a user that can add the entries into JNDI
 for our applications. Next we'll add an entry into JNDI:
 
+[source,console]
 -------------------------
 % $JBOSS_HOME/bin/jboss-cli.sh 
 You are disconnected at the moment. Type 'connect' to connect to the server or 'help' for the list of supported commands.
@@ -83,6 +85,7 @@ to use either of those as we'd have to modify code or a deployment descriptor wh
 tell DeltaSpike there's a new location in JNDI we want it to check for configuration. This is done by creating a new instance of
 `ConfigSource` and registering it with DeltaSpike using the standard services registration from the JDK. Let's code up that class:
 
+[source,java]
 ---------------------
 import java.util.Arrays;
 import java.util.List;
@@ -99,7 +102,7 @@ import org.apache.deltaspike.core.spi.config.ConfigSourceProvider;
  *
  * @author <a href="https://community.jboss.org/people/lightguard">Jason Porter</a>
  */
-public class GlobalJndiConfigSource implements ConfigSource, ConfigSourceProvider {             <1>
+public class GlobalJndiConfigSource implements ConfigSource, ConfigSourceProvider {             //<1>
 
     private final String GLOBAL_ENV_BASE_NAME = "java:global/deltaspike";
     private final Logger logger = Logger.getLogger(GlobalJndiConfigSource.class.getName());
@@ -116,7 +119,7 @@ public class GlobalJndiConfigSource implements ConfigSource, ConfigSourceProvide
 
     @Override
     public int getOrdinal() {
-        return 350;                                                                             <2>
+        return 350;                                                                             //<2>
     }
 
     @Override
@@ -145,20 +148,22 @@ public class GlobalJndiConfigSource implements ConfigSource, ConfigSourceProvide
 
     @Override
     public String getConfigName() {
-        return GLOBAL_ENV_BASE_NAME;                                                            <3>
+        return GLOBAL_ENV_BASE_NAME;                                                            //<3>
     }
 
     @Override
-    public List<ConfigSource> getConfigSources() {                                              <4>
+    public List<ConfigSource> getConfigSources() {                                              //<4>
         return Arrays.asList((ConfigSource) this);
     }
 }
 --------------------------
+
 <1> A custom `ConfigSource` must implement the `ConfigSource` interface, the `ConfigSourceProvider` is to register the `ConfigSource` with DeltaSpike, more later
-<2> The ordinal, as is defined in the JavaDoc, is to give it an order of the list of `ConfigSources`
-    NOTE: In version v0.1-incubating it must be higher than 300 to be above `LocalJndiConfigSource`, in v0.2-incubating it must be higher than 200
+<2> The ordinal, as is defined in the JavaDoc, is to give it an order of the list of `ConfigSources` 
 <3> This is simply a display name, using the `GLOBAL_ENV_BASE_NAME` helps to tell it apart from other JNDI based `ConfigSource` implementations
 <4> Because there's only one class, I combined the `ConfigSourceProvider` into the same class.
+
+NOTE: In version v0.1-incubating the ordinal must be higher than 300 to be above `LocalJndiConfigSource`, in v0.2-incubating it must be higher than 200.
 
 The last step to registering the new `ConfigSource` is to add an instance of `ConfigSourceProvider` which returns our new `ConfigSource` from the `ServiceLoader`.
 This is done simply by creating the `ConfigSourceProvider` (I did that in the same class as mentioned above) and add a file called 
