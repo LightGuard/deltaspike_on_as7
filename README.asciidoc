@@ -1,0 +1,40 @@
+== DeltaSpike on JBoss AS7 ==
+
+=== Introduction ===
+These tutorials are to demonstrate how to use Apache DeltaSpike on JBoss AS 7
+and JBoss EAP 6. Unless otherwise noted, the tutorials are standalone and can
+be used in your own projects.
+
+All of the tutorials use Apache Maven as the primary build tool, though 
+some may contain secondary build scripts such as Apache ant or Gradle. Each
+tutorial may also be run using JBoss Forge.
+
+=== Available tutorials ===
+
+[options="header"]
+|==============================
+|Name|Concept|Description|Experience Level|Prerequisites|
+|Configuration Using Jndi|Custom ConfigSource, order of ConfigSource|Intermediate|None|
+|==============================
+
+=== Suggested Approach to the tutorials ===
+
+=== Environment Requirements ===
+
+// === Configuring Maven / Forge ===
+
+// ==== Configuring for JBoss EAP 6 ====
+
+// ==== Configuring for JBoss AS 7 ====
+
+=== Running the Quickstarts ===
+
+=== Running the Arquillian Tests ===
+
+=== Using an IDE to run the Tutorials ===
+
+=== Contributing ===
+
+Each tutorial should contain a JBoss Forge script (FSH) used to start the tutorial.
+This helps expose Forge and also makes it easy for others to see what is going on.
+
