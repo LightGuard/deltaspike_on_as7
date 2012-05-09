@@ -1,0 +1,14 @@
+= Apache DeltaSpike on JBoss AS7 Series: Authentication =
+May 9 2012
+
+  DeltaSpike version: v0.2-incubating or higher 
+  JBoss AS version: 7.1.1.Final or higher
+
+Apache DeltaSpike is a collection of CDI extensions for use with any Java 
+Enterprise Edition (Java EE) version 6 or higher. In this series of blogs I will 
+be demonstrating the use of the different extensions within DeltaSpike on JBoss
+AS7. You can find the version of DeltaSpike and JBoss AS being used at the top
+of each of the blog entries.
+
+== Authentication using the Security Module ==
+
